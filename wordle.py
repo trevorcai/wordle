@@ -48,15 +48,15 @@ def matches_hint(word: str, hint: Hint) -> bool:
     for c, g in zip(word, hint.green):
         if g is not None and c != g:
             return False
+    for b in hint.black:
+        if b in word:
+            return False
     for y, idxs in hint.yellow.items():
         if y not in word:
             return False
         for idx in idxs:
             if word[idx] == y:
                 return False
-    for b in hint.black:
-        if b in word:
-            return False
 
     return True
 
