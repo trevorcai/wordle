@@ -2,6 +2,7 @@
 
 import copy
 import dataclasses
+import sys
 from typing import Mapping, Optional, Sequence, Set
 
 import valid_words
@@ -84,9 +85,14 @@ def minmax_step(possible_keys, vocab, curr_hint):
 def main():
     # Game settings.
     HARD_MODE = True
-    TRUTH = "prick"
+    TRUTH = sys.argv[1]
     if TRUTH not in valid_words.POSSIBLE_KEYS:
         raise ValueError(f"{TRUTH} not a valid possible key.")
+
+    if len(sys.argv) > 2:
+        first_guess = sys.argv[2]
+    else:
+        first_guess = 'slate'  # cached.
 
     possible_keys = valid_words.POSSIBLE_KEYS
     vocab = valid_words.VALID_GUESSES
@@ -96,9 +102,7 @@ def main():
         if attempt:
             guess = minmax_step(possible_keys, vocab, hint)
         else:
-            # Cached first guess.
-            # TODO: Actually compute this.
-            guess = 'roast'
+            guess = first_guess
 
         print(f'Guessing', guess)
         is_correct, hint = score_word(TRUTH, guess, hint)
