@@ -1,9 +1,13 @@
-"""1-step wordle."""
+"""1-step wordle.
+
+Call as:
+    python wordle.py <truth> [<first guess>]
+"""
 
 import copy
 import dataclasses
 import sys
-from typing import Mapping, Optional, Sequence, Set
+from typing import Dict, Optional, Sequence, Set
 
 import valid_words
 
@@ -13,7 +17,7 @@ class Hint:
     # Sequence of length 5, Optional if not confirmed.
     green: Sequence[Optional[str]]
     # Characters present but not at the specified index.
-    yellow: Mapping[str, Set[int]]
+    yellow: Dict[str, Set[int]]
     # Characters not present.
     black: Set[str]
 
@@ -24,7 +28,7 @@ def score_word(truth: str, attempt: str, hint: Hint):
     """For a given attempt at guessing truth, generate the next hint."""
     # Mutable copies of previous hint.
     green = list(hint.green)
-    yellow = dict(**copy.deepcopy(hint.yellow))
+    yellow = copy.deepcopy(hint.yellow)
     black = set(hint.black)
 
     # Update hint with new information.
@@ -65,19 +69,42 @@ def matches_hint(word: str, hint: Hint) -> bool:
 def minmax_step(possible_keys, vocab, curr_hint):
     """Find the guess that has best 1-step worst-case information."""
     best_guess, best_min_eliminated = vocab[0], 0
+
+    # In case of ties, prefer words that could be correct
+    best_in_possible = best_guess in possible_keys
+
     for v in vocab:
-        min_eliminated = len(possible_keys)
+        # Partition possible answers by resulting hint pattern
+        partitions = {}
         for k in possible_keys:
             is_correct, next_hint = score_word(k, v, curr_hint)
-            if is_correct:
-                # If correct, all eliminated.
-                remaining = 0
-            else:
-                remaining = sum(1 for w in possible_keys if matches_hint(w, next_hint))
-            min_eliminated = min(min_eliminated, len(possible_keys) - remaining)
 
-        if min_eliminated > best_min_eliminated:
-            best_guess, best_min_eliminated = v, min_eliminated
+            # Convert hint to hashable representation
+            hint_key = (
+                tuple(next_hint.green),
+                frozenset((c, frozenset(idx)) for c, idx in next_hint.yellow.items()),
+                frozenset(next_hint.black)
+            )
+
+            if hint_key not in partitions:
+                partitions[hint_key] = []
+            partitions[hint_key].append(k)
+
+        # Find worst case (largest remaining group)
+        worst_case_remaining = max(len(group) for group in partitions.values()) if partitions else len(possible_keys)
+        min_eliminated = len(possible_keys) - worst_case_remaining
+
+        # Current word is in possible answers
+        v_in_possible = v in possible_keys
+
+        # Update best if:
+        # 1. This word eliminates more words than previous best, OR
+        # 2. It eliminates the same number but this word is a possible answer and previous best is not
+        if (min_eliminated > best_min_eliminated) or \
+           (min_eliminated == best_min_eliminated and v_in_possible and not best_in_possible):
+            best_guess = v
+            best_min_eliminated = min_eliminated
+            best_in_possible = v_in_possible
 
     return best_guess
 
@@ -92,7 +119,7 @@ def main():
     if len(sys.argv) > 2:
         first_guess = sys.argv[2]
     else:
-        first_guess = 'slate'  # cached.
+        first_guess = 'aesir'  # precomputed
 
     possible_keys = valid_words.POSSIBLE_KEYS
     vocab = valid_words.VALID_GUESSES
